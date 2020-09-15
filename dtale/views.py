@@ -24,6 +24,7 @@ from dtale.cli.clickutils import retrieve_meta_info_and_version
 from dtale.column_builders import ColumnBuilder
 from dtale.column_filters import ColumnFilter
 from dtale.column_replacements import ColumnReplacement
+from dtale.duplicate_checks import DuplicateCheck
 from dtale.dash_application.charts import (
     build_raw_chart,
     chart_url_params,
@@ -1286,6 +1287,19 @@ def build_column_bins_tester(data_id):
     data = global_state.get_data(data_id)
     data, labels = builder.builder.build_test(data)
     return jsonify(dict(data=data, labels=labels))
+
+
+@dtale.route("/duplicates/<data_id>")
+@exception_decorator
+def get_duplicates(data_id):
+    dupe_type = get_str_arg(request, "type")
+    cfg = json.loads(get_str_arg(request, "cfg"))
+    action = get_str_arg(request, "action")
+    duplicate_check = DuplicateCheck(data_id, dupe_type, cfg)
+    if action == "test":
+        return jsonify(results=duplicate_check.test())
+    updated_data_id = duplicate_check.execute()
+    return jsonify(success=True, data_id=updated_data_id)
 
 
 @dtale.route("/reshape/<data_id>")

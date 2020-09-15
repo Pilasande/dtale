@@ -296,7 +296,7 @@ def json_timestamp(x, nan_display="", **kwargs):
             (time.mktime(output.timetuple()) + (old_div(output.microsecond, 1000000.0)))
             * 1000
         )
-        return output
+        return str(output) if kwargs.get("as_string", False) else output
     except BaseException:
         return nan_display
 
@@ -315,29 +315,38 @@ class JSONFormatter(object):
         >>> jsonify(f.format_dicts([dict(a=1, b=2.0, c='c')]))
     """
 
-    def __init__(self, nan_display=""):
+    def __init__(self, nan_display="", as_string=False):
         self.fmts = []
         self.nan_display = nan_display
+        self.as_string = as_string
 
     def add_string(self, idx, name=None):
         self.fmts.append([idx, name, json_string])
 
     def add_int(self, idx, name=None, as_string=False):
         def f(x, nan_display):
-            return json_int(x, nan_display=nan_display, as_string=as_string)
+            return json_int(
+                x, nan_display=nan_display, as_string=as_string or self.as_string
+            )
 
         self.fmts.append([idx, name, f])
 
     def add_float(self, idx, name=None, precision=6, as_string=False):
         def f(x, nan_display):
             return json_float(
-                x, precision, nan_display=nan_display, as_string=as_string
+                x,
+                precision,
+                nan_display=nan_display,
+                as_string=as_string or self.as_string,
             )
 
         self.fmts.append([idx, name, f])
 
-    def add_timestamp(self, idx, name=None):
-        self.fmts.append([idx, name, json_timestamp])
+    def add_timestamp(self, idx, name=None, as_string=False):
+        def f(x):
+            return json_timestamp(x, as_string=as_string or self.as_string)
+
+        self.fmts.append([idx, name, f])
 
     def add_date(self, idx, name=None, fmt="%Y-%m-%d %H:%M:%S"):
         def f(x, nan_display):
@@ -510,11 +519,11 @@ def find_dtype_formatter(dtype, overrides=None):
     return json_string
 
 
-def grid_formatter(col_types, nan_display="", overrides=None):
+def grid_formatter(col_types, nan_display="", overrides=None, as_string=False):
     """
     Build :class:`dtale.utils.JSONFormatter` from :class:`pandas:pandas.DataFrame`
     """
-    f = JSONFormatter(nan_display)
+    f = JSONFormatter(nan_display, as_string=as_string)
     mappings = dict_merge(DF_MAPPINGS, overrides or {})
     for i, ct in enumerate(col_types, 1):
         c, dtype = map(ct.get, ["name", "dtype"])
@@ -782,7 +791,7 @@ def build_code_export(data_id, imports="import pandas as pd\n\n", query=None):
         "# DISCLAIMER: 'df' refers to the data you passed in when calling 'dtale.show'\n\n"
         "{imports}"
         "{xarray_setup}"
-        "{startup}"
+        "{startup}\n"
         "if isinstance(df, (pd.DatetimeIndex, pd.MultiIndex)):\n"
         "\tdf = df.to_frame(index=False)\n\n"
         "# remove any pre-existing indices for ease of use in the D-Tale code, but this is not required\n"
